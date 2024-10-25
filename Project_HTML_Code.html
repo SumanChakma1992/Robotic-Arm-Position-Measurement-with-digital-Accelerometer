@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sensor Data Display</title>
+  <style>
+    #container {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+    }
+    #sensorData {
+      width: 30%;
+      padding-right: 20px;
+      text-align: left;
+    }
+    #canvasContainer {
+      width: 40%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    #threeCanvas {
+      width: 100%;
+      height: 100%;
+    }
+    .button-container {
+      margin: 10px 0;
+      text-align: center;
+    }
+    .button-container button {
+      margin-right: 10px;
+      padding: 10px;
+      border: none;
+      color: white;
+      cursor: pointer;
+    }
+    .on {
+      background-color: green;
+    }
+    .off {
+      background-color: red;
+    }
+    .angle-display {
+      position: absolute;
+      left: 10px;
+      top: 10px;
+      color: black;
+      font-size: 20px;
+      text-align: left;
+      background-color: rgba(255, 255, 255, 0.5);
+      padding: 10px;
+      border-radius: 5px;
+    }
+    .angle-section {
+      margin-bottom: 20px;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.129.0/build/three.min.js"></script>
+</head>
+<body>
+  <h1>Sensor Data Display</h1>
+  <div class="button-container">
+    <button id="toggleMpu1" class="on">Toggle MPU6050 #1 ON</button>
+    <button id="toggleMpu2" class="on">Toggle MPU6050 #2 ON</button>
+    <button id="toggleAdxl" class="on">Toggle ADXL345 ON</button>
+  </div>
+  <div id="container">
+    <div id="sensorData"></div>
+    <div id="canvasContainer">
+      <canvas id="threeCanvas"></canvas>
+      <div class="angle-display">
+        <div id="mpu1Angles" class="angle-section"></div>
+        <div id="mpu2Angles" class="angle-section"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const socket = new WebSocket('ws://localhost:3000');
+    let mpu1Enabled = true;
+    let mpu2Enabled = true;
+    let adxlEnabled = true;
+
+    const toggleButton = (button, state) => {
+      button.classList.toggle('on', state);
+      button.classList.toggle('off', !state);
+      button.textContent = button.textContent.replace(/ (ON|OFF)$/, '') + (state ? ' ON' : ' OFF');
+    };
+
+    const mpu1Button = document.getElementById('toggleMpu1');
+    const mpu2Button = document.getElementById('toggleMpu2');
+    const adxlButton = document.getElementById('toggleAdxl');
+    const mpu1Angles = document.getElementById('mpu1Angles');
+    const mpu2Angles = document.getElementById('mpu2Angles');
+
+    mpu1Button.addEventListener('click', () => {
+      mpu1Enabled = !mpu1Enabled;
+      toggleButton(mpu1Button, mpu1Enabled);
+      socket.send('toggleMpu1');
+    });
+
+    mpu2Button.addEventListener('click', () => {
+      mpu2Enabled = !mpu2Enabled;
+      toggleButton(mpu2Button, mpu2Enabled);
+      socket.send('toggleMpu2');
+    });
+
+    adxlButton.addEventListener('click', () => {
+      adxlEnabled = !adxlEnabled;
+      toggleButton(adxlButton, adxlEnabled);
+      socket.send('toggleAdxl');
+    });
+
+    socket.addEventListener('open', function (event) {
+      console.log('WebSocket connection opened');
+    });
+
+    socket.addEventListener('message', function (event) {
+      const sensorData = JSON.parse(event.data);
+      updateSensorData(sensorData);
+      updateHand(
+        sensorData.mpu1.ax, sensorData.mpu1.ay, sensorData.mpu1.az, sensorData.mpu1.gx, sensorData.mpu1.gy, sensorData.mpu1.gz,
+        sensorData.mpu2.ax, sensorData.mpu2.ay, sensorData.mpu2.az, sensorData.mpu2.gx, sensorData.mpu2.gy, sensorData.mpu2.gz,
+        sensorData.adxl.ax, sensorData.adxl.ay, sensorData.adxl.az
+      );
+    });
+
+    socket.addEventListener('close', function (event) {
+      console.log('WebSocket connection closed');
+    });
+
+    socket.addEventListener('error', function (event) {
+      console.error('WebSocket error:', event);
+    });
+
+    function updateSensorData(sensorData) {
+      const sensorDataDiv = document.getElementById('sensorData');
+      sensorDataDiv.innerHTML = ''; // Clear previous data
+
+      if (mpu1Enabled) {
+        const ax1 = sensorData.mpu1.ax;
+        const ay1 = sensorData.mpu1.ay;
+        const az1 = sensorData.mpu1.az;
+        const gx1 = sensorData.mpu1.gx;
+        const gy1 = sensorData.mpu1.gy;
+        const gz1 = sensorData.mpu1.gz;
+
+        const sensorDiv1 = document.createElement('div');
+        sensorDiv1.innerHTML = `<h2>MPU6050 #1 Data</h2>
+                                <p>Acceleration X: ${ax1}</p>
+                                <p>Acceleration Y: ${ay1}</p>
+                                <p>Acceleration Z: ${az1}</p>
+                                <p>Gyroscope X: ${gx1}</p>
+                                <p>Gyroscope Y: ${gy1}</p>
+                                <p>Gyroscope Z: ${gz1}</p>
+                                <p>Displacement X: ${sensorData.mpu1.displacement.x.toFixed(2)} m</p>
+                                <p>Displacement Y: ${sensorData.mpu1.displacement.y.toFixed(2)} m</p>
+                                <p>Displacement Z: ${sensorData.mpu1.displacement.z.toFixed(2)} m</p>`;
+        sensorDataDiv.appendChild(sensorDiv1);
+      }
+
+      if (mpu2Enabled) {
+        const ax2 = sensorData.mpu2.ax;
+        const ay2 = sensorData.mpu2.ay;
+        const az2 = sensorData.mpu2.az;
+        const gx2 = sensorData.mpu2.gx;
+        const gy2 = sensorData.mpu2.gy;
+        const gz2 = sensorData.mpu2.gz;
+
+        const sensorDiv2 = document.createElement('div');
+        sensorDiv2.innerHTML = `<h2>MPU6050 #2 Data</h2>
+                                <p>Acceleration X: ${ax2}</p>
+                                <p>Acceleration Y: ${ay2}</p>
+                                <p>Acceleration Z: ${az2}</p>
+                                <p>Gyroscope X: ${gx2}</p>
+                                <p>Gyroscope Y: ${gy2}</p>
+                                <p>Gyroscope Z: ${gz2}</p>
+                                <p>Displacement X: ${sensorData.mpu2.displacement.x.toFixed(2)} m</p>
+                                <p>Displacement Y: ${sensorData.mpu2.displacement.y.toFixed(2)} m</p>
+                                <p>Displacement Z: ${sensorData.mpu2.displacement.z.toFixed(2)} m</p>`;
+        sensorDataDiv.appendChild(sensorDiv2);
+      }
+
+      if (adxlEnabled) {
+        const adxl_ax = sensorData.adxl.ax;
+        const adxl_ay = sensorData.adxl.ay;
+        const adxl_az = sensorData.adxl.az;
+
+        const sensorDiv3 = document.createElement('div');
+        sensorDiv3.innerHTML = `<h2>ADXL345 Data</h2>
+                                <p>Acceleration X: ${adxl_ax}</p>
+                                <p>Acceleration Y: ${adxl_ay}</p>
+                                <p>Acceleration Z: ${adxl_az}</p>`;
+        sensorDataDiv.appendChild(sensorDiv3);
+      }
+    }
+
+    // Set up the Three.js scene
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('threeCanvas'), antialias: true });
+    renderer.setSize(window.innerWidth / 2, window.innerHeight);
+    document.getElementById('canvasContainer').appendChild(renderer.domElement);
+
+    const hand1 = new THREE.Group();
+    const hand2 = new THREE.Group();
+    const hand3 = new THREE.Group(); // Hand for ADXL345
+
+    const armGeometry = new THREE.BoxGeometry(0.5, 0.3, 0.5);
+    const armMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+    const arm1 = new THREE.Mesh(armGeometry, armMaterial);
+    arm1.position.set(0, -2.6, 0);
+    hand1.add(arm1);
+    const arm2 = new THREE.Mesh(armGeometry, armMaterial);
+    arm2.position.set(0, -2.6, 0);
+    hand2.add(arm2);
+    const arm3 = new THREE.Mesh(armGeometry, armMaterial);
+    arm3.position.set(0, -2.6, 0);
+    hand3.add(arm3);
+
+    const fingerGeometry = new THREE.BoxGeometry(2.5, 0.3, 2.5);
+    const fingerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+    const finger1 = new THREE.Mesh(fingerGeometry, fingerMaterial);
+    finger1.position.set(0, -3, 0);
+    hand1.add(finger1);
+    const finger2 = new THREE.Mesh(fingerGeometry, fingerMaterial);
+    finger2.position.set(0, -3, 0);
+    hand2.add(finger2);
+    const finger3 = new THREE.Mesh(fingerGeometry, fingerMaterial);
+    finger3.position.set(0, -3, 0);
+    hand3.add(finger3);
+
+    hand1.position.set(0, 3, 0);
+    hand2.position.set(0, 0, 0);
+    hand3.position.set(0, -3, 0);
+
+    scene.add(hand1);
+    scene.add(hand2);
+    scene.add(hand3);
+
+    camera.position.z = 10;
+
+    const animate = function () {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    };
+
+    animate();
+
+    const alpha = 0.02; // Smoothing factor for angles
+    let filteredAx1 = 0, filteredAy1 = 0, filteredAz1 = 0;
+    let filteredGx1 = 0, filteredGy1 = 0, filteredGz1 = 0;
+    let filteredAx2 = 0, filteredAy2 = 0, filteredAz2 = 0;
+    let filteredGx2 = 0, filteredGy2 = 0, filteredGz2 = 0;
+    let filteredAdxlAx = 0, filteredAdxlAy = 0, filteredAdxlAz = 0;
+
+    function calculateEulerAngles(ax, ay, az) {
+      const pitch = Math.atan2(ay, Math.sqrt(ax * ax + az * az)) * (180 / Math.PI);
+      const roll = Math.atan2(-ax, az) * (180 / Math.PI);
+      return { pitch, roll };
+    }
+
+    function updateHand(ax1, ay1, az1, gx1, gy1, gz1, ax2, ay2, az2, gx2, gy2, gz2, adxl_ax, adxl_ay, adxl_az) {
+      let { pitch: pitch1, roll: roll1 } = calculateEulerAngles(ax1, ay1, az1);
+      let { pitch: pitch2, roll: roll2 } = calculateEulerAngles(ax2, ay2, az2);
+
+      const yaw1 = gz1 * (180 / Math.PI); 
+      const yaw2 = gz2 * (180 / Math.PI);
+
+      if (mpu1Enabled) {
+        filteredAx1 = alpha * ax1 + (1 - alpha) * filteredAx1;
+        filteredAy1 = alpha * ay1 + (1 - alpha) * filteredAy1;
+        filteredAz1 = alpha * az1 + (1 - alpha) * filteredAz1;
+
+        hand1.rotation.x = filteredAx1 * 2;
+        hand1.rotation.y = filteredAy1 * 2;
+        hand1.rotation.z = filteredAz1 * 2;
+
+        hand1.rotation.x += gx1 * Math.PI / 180;
+        hand1.rotation.y += gy1 * Math.PI / 180;
+        hand1.rotation.z += gz1 * Math.PI / 180;
+
+        mpu1Angles.innerHTML = 
+          `<p>MPU6050 #1</p>
+          <p>Pitch: ${pitch1.toFixed(2)}°</p>
+          <p>Roll: ${roll1.toFixed(2)}°</p>
+          <p>Yaw: ${yaw1.toFixed(2)}°</p>`;
+      } else {
+        mpu1Angles.innerHTML = ""; // Clear the display if MPU1 is disabled
+      }
+
+      if (mpu2Enabled) {
+        filteredAx2 = alpha * ax2 + (1 - alpha) * filteredAx2;
+        filteredAy2 = alpha * ay2 + (1 - alpha) * filteredAy2;
+        filteredAz2 = alpha * az2 + (1 - alpha) * filteredAz2;
+
+        hand2.rotation.x = filteredAx2 * 2;
+        hand2.rotation.y = filteredAy2 * 2;
+        hand2.rotation.z = filteredAz2 * 2;
+
+        hand2.rotation.x += gx2 * Math.PI / 180;
+        hand2.rotation.y += gy2 * Math.PI / 180;
+        hand2.rotation.z += gz2 * Math.PI / 180;
+
+        mpu2Angles.innerHTML = 
+          `<p>MPU6050 #2</p>
+          <p>Pitch: ${pitch2.toFixed(2)}°</p>
+          <p>Roll: ${roll2.toFixed(2)}°</p>
+          <p>Yaw: ${yaw2.toFixed(2)}°</p>`;
+      } else {
+        mpu2Angles.innerHTML = ""; // Clear the display if MPU2 is disabled
+      }
+
+      if (adxlEnabled) {
+        filteredAdxlAx = alpha * adxl_ax + (1 - alpha) * filteredAdxlAx;
+        filteredAdxlAy = alpha * adxl_ay + (1 - alpha) * filteredAdxlAy;
+        filteredAdxlAz = alpha * adxl_az + (1 - alpha) * filteredAdxlAz;
+
+        hand3.rotation.x = filteredAdxlAx * 2;
+        hand3.rotation.y = filteredAdxlAy * 2;
+        hand3.rotation.z = filteredAdxlAz * 2;
+      }
+    }
+  </script>
+</body>
+</html>
+
+
+ 
+ 
+ 
+
